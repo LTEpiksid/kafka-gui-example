@@ -14,6 +14,8 @@ public class KafkaProducerGUI extends JFrame {
     private JTextArea textArea;
     private JTextField textField;
     private JButton sendButton;
+    private JButton refreshTopicsButton;
+    private JComboBox<String> topicComboBox;
     private KafkaProducer<String, String> producer;
 
     public KafkaProducerGUI() {
@@ -24,8 +26,14 @@ public class KafkaProducerGUI extends JFrame {
         textArea.setEditable(false);
         textField = new JTextField();
         sendButton = new JButton("Send");
+        refreshTopicsButton = new JButton("Refresh Topics");
+        topicComboBox = new JComboBox<>();
 
         JPanel panel = new JPanel(new BorderLayout());
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(topicComboBox, BorderLayout.CENTER);
+        topPanel.add(refreshTopicsButton, BorderLayout.EAST);
+        panel.add(topPanel, BorderLayout.NORTH);
         panel.add(textField, BorderLayout.CENTER);
         panel.add(sendButton, BorderLayout.EAST);
 
@@ -40,9 +48,16 @@ public class KafkaProducerGUI extends JFrame {
             }
         });
 
+        refreshTopicsButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                populateTopics();
+            }
+        });
+
         setVisible(true);
         initializeProducer();
-        produceInitialMessages();
+        populateTopics();
     }
 
     private void initializeProducer() {
@@ -53,19 +68,26 @@ public class KafkaProducerGUI extends JFrame {
         producer = new KafkaProducer<>(props);
     }
 
-    private void produceInitialMessages() {
-        for (int i = 0; i < 10; i++) {
-            sendMessage("Hello, Kafka " + i);
+    private void populateTopics() {
+        topicComboBox.removeAllItems();
+        String[] topics = KafkaTopicFetcher.getTopics();
+        for (String topic : topics) {
+            topicComboBox.addItem(topic);
         }
     }
 
     private void sendMessage(String value) {
+        String topic = (String) topicComboBox.getSelectedItem();
+        if (topic == null) {
+            textArea.append("No topic selected.\n");
+            return;
+        }
         String key = "key-" + System.currentTimeMillis();
-        ProducerRecord<String, String> record = new ProducerRecord<>("test-topic", key, value);
+        ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
 
         try {
             RecordMetadata metadata = producer.send(record).get();
-            textArea.append("Sent message: " + value + " with offset: " + metadata.offset() + "\n");
+            textArea.append("Sent message to " + topic + ": " + value + " with offset: " + metadata.offset() + "\n");
             textArea.setCaretPosition(textArea.getDocument().getLength());
         } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
